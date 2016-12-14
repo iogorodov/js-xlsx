@@ -7833,6 +7833,32 @@ function write_ws_xml_data(ws, opts, idx, wb) {
 	return o.join("");
 }
 
+RELS.HLINK = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+
+function write_ws_xml_hlinks(ws, opts) {
+	if(ws['!ref'] === undefined) return '';
+	var o = [], range = safe_decode_range(ws['!ref']), cell, ref, rr = "", cols = [], R, C, relobj, rId = 0, t;
+	for(C = range.s.c; C <= range.e.c; ++C) cols[C] = encode_col(C);
+	for(R = range.s.r; R <= range.e.r; ++R) {
+		rr = encode_row(R);
+		for(C = range.s.c; C <= range.e.c; ++C) {
+			ref = cols[C] + rr;
+			cell = ws[ref];
+			if(cell && cell.l && cell.l.Target && typeof cell.l.Target === 'string') {
+				t = ('/' + cell.l.Target).replace("//","/");
+				if(!(t in opts.wsrels)) {
+					add_rels(opts.wsrels, ++rId, cell.l.Target, RELS.HLINK);
+					opts.wsrels[t].TargetMode = 'External';
+				}
+				if(o.length === 0) o[o.length] = ('<hyperlinks>');
+				o[o.length] = (writextag('hyperlink', null, {ref:ref, "r:id":opts.wsrels[t].Id}));
+			}
+		}
+	}
+	if(o.length > 0) o[o.length] = ('</hyperlinks>');
+	return o.join("");
+}
+
 var WS_XML_ROOT = writextag('worksheet', null, {
 	'xmlns': XMLNS.main[0],
 	'xmlns:r': XMLNS.r
@@ -7866,6 +7892,9 @@ function write_ws_xml(idx, opts, wb) {
   if (ws['!pageSetup'] !== undefined) o[o.length] =  write_ws_xml_pagesetup(ws['!pageSetup']);
   if (ws['!rowBreaks'] !== undefined) o[o.length] =  write_ws_xml_row_breaks(ws['!rowBreaks']);
   if (ws['!colBreaks'] !== undefined) o[o.length] =  write_ws_xml_col_breaks(ws['!colBreaks']);
+
+	rdata = write_ws_xml_hlinks(ws, opts);
+	if(rdata.length > 0) o[o.length] = (rdata);
 
 	if(o.length>2) { o[o.length] = ('</worksheet>'); o[1]=o[1].replace("/>",">"); }
 	return o.join("");
@@ -11687,9 +11716,12 @@ function write_zip(wb, opts) {
 
 	for(rId=1;rId <= wb.SheetNames.length; ++rId) {
 		f = "xl/worksheets/sheet" + rId + "." + wbext;
+		opts.wsrels = {};
 		zip.file(f, write_ws(rId-1, f, opts, wb));
 		ct.sheets.push(f);
 		add_rels(opts.wbrels, rId, "worksheets/sheet" + rId + "." + wbext, RELS.WS);
+
+		if('!id' in opts.wsrels) zip.file("xl/worksheets/_rels/sheet" + rId + "." + wbext + ".rels", write_rels(opts.wsrels));
 	}
 
 	if(opts.Strings != null && opts.Strings.length > 0) {
