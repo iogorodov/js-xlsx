@@ -7859,6 +7859,21 @@ function write_ws_xml_hlinks(ws, opts) {
 	return o.join("");
 }
 
+function write_ws_xml_freeze(ref) {
+	if(ref === undefined) return null;
+	var r, c;
+	if(typeof ref === 'string') {
+		r = ref;
+	} else {
+		r = encode_cell({c:ref.c || 0, r:ref.r || 0});
+	}
+	c = decode_cell(r);
+	var pane = {topLeftCell: r,	activePane: 'bottomLeft', state: 'frozen'};
+	if(c.c > 0) pane.xSplit = c.c + '.0';
+	if(c.r > 0) pane.ySplit = c.r + '.0';
+	return writextag('pane', null, pane);
+}
+
 var WS_XML_ROOT = writextag('worksheet', null, {
 	'xmlns': XMLNS.main[0],
 	'xmlns:r': XMLNS.r
@@ -7872,7 +7887,9 @@ function write_ws_xml(idx, opts, wb) {
 	var ref = ws['!ref']; if(ref === undefined) ref = 'A1';
 	o[o.length] = (writextag('dimension', null, {'ref': ref}));
 
-  var sheetView = writextag('sheetView', null,  {
+	var pane = write_ws_xml_freeze(ws['!freeze']);
+
+  var sheetView = writextag('sheetView', pane,  {
     showGridLines: opts.showGridLines == false ? '0' : '1',
     tabSelected: opts.tabSelected === undefined ? '0' :  opts.tabSelected,  // see issue #26, need to set WorkbookViews if this is set
     workbookViewId: opts.workbookViewId === undefined ? '0' : opts.workbookViewId
